@@ -24,7 +24,7 @@ The `environment` argument specifies the server group to which queries will be a
 
 Project ids are optional; we use them to identify the patron who made a request.
 
-#### Authenticate
+### Authenticate
 
 Before running any queries, you must authenticate with the WSK servers:
 
@@ -34,7 +34,7 @@ auth_token = session.authenticate(username='tonytiger', password='grrrrreat')
 
 This returns an authentication token that can be used to make requests. The token is saved internally for future requests.
 
-#### Search
+### Search
 
 The primary purpose of this API wrapper is to make it easier to run searches against the Lexis Nexis WSK servers, which were constructed such that any query that would return more than 3000 results returns a 500 response. To get around those limits, the `search()` method breaks queries into smaller units and fetches results for each. To run a search, one can do:
 
@@ -67,7 +67,7 @@ All metadata values provided by the WSK servers are preserved in the returned da
 ]
 ```
 
-#### Search Sources
+### Search Sources
 
 The WSK endpoints require one to identify a `source_id` for each query. Searching the WSK sources is a way of retrieving `source_id` values. 
 
@@ -99,7 +99,7 @@ All metadata values provided by the WSK servers are preserved in the returned da
 ]
 ```
 
-#### Find Publications in Source
+### Find Publications in Source
 
 To find the publication titles within a source, one can run:
 
