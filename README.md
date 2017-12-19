@@ -2,15 +2,13 @@
 
 This module provides convenience wrappers around the Lexis Nexis Web Services Kit API.
 
-## Dependencies
+## Installation
 
-To install required dependencies, you can run:
+To install this module and its dependencies, you can run:
 
 ```
-pip install -r requirements.txt --user
+pip install wsk
 ```
-
-If you're working in a virtual environment, you can drop the `--user` flag.
 
 ## Initializing
 
