@@ -342,7 +342,7 @@ class WSK:
     url = self.get_url('Retrieval')
     response = requests.post(url=url, headers=self.get_headers(request), data=request)
     soup = BeautifulSoup(response.text, 'xml')
-    doc = base64.b64decode(soup.document.text)
+    doc = base64.b64decode(soup.document.text).decode('utf8')
     return doc
 
 
