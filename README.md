@@ -1,6 +1,6 @@
 # WSK
 
-This module provides convenience wrappers around the Lexis Nexis Web Services Kit API.
+This module provides convenience wrappers around the Lexis Nexis Web Services Kit API. To use it, you'll need to make sure your university or organization has purchased access to the Lexis Nexis Web Services Kit API.
 
 ## Installation
 
@@ -20,19 +20,19 @@ from wsk import WSK
 session = WSK(environment='www.lexisnexis.com', project_id='cucumber@yale.edu')
 ```
 
-The `environment` argument specifies the server group to which queries will be addressed. The WSK supports three server groups (certification, preproduction, and production), each with their own urls. The `environment` argument specifies the server group to which requests should be made. `www.lexisnexis.com` is the production server group.
+The `environment` argument specifies the server group to which queries will be addressed. The WSK supports three server groups (certification, preproduction, and production), each with their own urls. `www.lexisnexis.com` is the production server group.
 
-Project ids are optional; we use them to identify the patron who made a request.
+Project ids are optional; we use them to identify the patron who made a request. If you save search results in MongoDB (see below), the `project_id` gets stored in each saved record.
 
 ### Authenticate
 
-Before running any queries, you must authenticate with the WSK servers:
+Before running any queries, you must authenticate with Lexis Nexis' WSK servers:
 
 ```
 auth_token = session.authenticate(username='tonytiger', password='grrrrreat')
 ```
 
-This returns an authentication token that can be used to make requests. The token is saved internally for future requests.
+This returns an authentication token that can be used to make requests. The token is saved internally for future requests. Note that Lexis Nexis retires tokens after a period of time (~24 hours currently).
 
 ### Search
 
