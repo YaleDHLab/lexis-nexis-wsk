@@ -132,7 +132,7 @@ A single query may return millions of documents, so instead of retrieving the re
 
 ```
 # specify the mongo db connection details
-session.set_db(dbname='wsk', dbhost='localhost', dbport=27017)
+session.set_db(dbname='wsk', uri='mongodb://localhost:27017')
 ```
 
 Then, when running search queries, save them in the db like so:
