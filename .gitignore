@@ -2,9 +2,9 @@
 *.swp
 *.pyc
 *.json
+*.egg-info
 wsk_1.41_documentation/
 __pycache__
 json/
-example.py
-*.egg-info
 dist/
+build/

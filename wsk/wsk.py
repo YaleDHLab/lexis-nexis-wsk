@@ -78,8 +78,9 @@ class WSK:
   # Search Method
   ##
 
-  def search(self, query, source_id, return_results=False, save_results=True,
-    start_date='2017-12-01', end_date='2017-12-02', get_text=True):
+  def search(self, query, source_id, start_date='2017-12-01',
+    end_date='2017-12-02', return_results=False, save_results=True,
+    get_text=True):
     '''
     Run a full query for the user, fetching all doc metadata and content
 
@@ -111,9 +112,10 @@ class WSK:
       while more_pages_to_query or more_days_to_query:
         start_date_str = self.date_to_string(query_start_date)
         end_date_str = self.date_to_string(query_end_date)
-        query_result = self.run_search(query, source_id, query_begin, query_end,
-              start_date_str, end_date_str, return_results, save_results,
-              get_text)
+        query_result = self.run_search(query, source_id, begin=query_begin,
+            end=query_end, start_date=start_date_str, end_date=end_date_str,
+            return_results=return_results, save_results=save_results,
+            get_text=get_text)
 
         # case where query returned no results
         if query_result['total_matches'] == 0:
@@ -342,7 +344,7 @@ class WSK:
     url = self.get_url('Retrieval')
     response = requests.post(url=url, headers=self.get_headers(request), data=request)
     soup = BeautifulSoup(response.text, 'xml')
-    doc = base64.b64decode(soup.document.text)
+    doc = base64.b64decode(soup.document.text).decode('utf8')
     return doc
 
 
