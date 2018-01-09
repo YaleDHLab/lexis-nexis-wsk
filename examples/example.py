@@ -8,7 +8,7 @@ from wsk import WSK
 session = WSK(environment='www.lexisnexis.com', project_id='cucumber@yale.edu')
 
 # specify mongo db connection details
-session.set_db(dbname='wsk', dbhost='localhost', dbport=27017)
+session.set_db(dbname='wsk', uri='mongodb://localhost:27017')
 
 # authenticate with the web service
 token = session.authenticate(username=os.environ['WSK_USERNAME'],

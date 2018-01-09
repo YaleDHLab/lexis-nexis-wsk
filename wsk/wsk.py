@@ -17,14 +17,13 @@ class WSK:
     self.session_id = calendar.timegm(time.gmtime())
 
 
-  def set_db(self, dbname='wsk', dbhost='localhost', dbport=27017):
+  def set_db(self, dbname='wsk', uri='mongodb://localhost:27017'):
     '''
     Create a MongoDB connection
     @param {str} dbname: the name of the db to use in Mongo
-    @param {str} dbhost: the database host address
-    @param {int} dbport: the port number of the db
+    @param {str} uri: a mongodb uri that specifies the db location
     '''
-    self.db = MongoClient(dbhost, dbport)[dbname]
+    self.db = MongoClient(uri)[dbname]
 
 
   def get_url(self, service, protocol='http'):
