@@ -7,6 +7,7 @@ import copy
 import json
 import requests
 import time
+import sys
 
 class WSK:
   def __init__(self, environment='', project_id=''):
@@ -69,8 +70,12 @@ class WSK:
       '''.format(username, password)
     url = self.get_url('Authentication', protocol='https')
     response = requests.post(url=url, headers=self.get_headers(request), data=request)
-    self.auth_token = BeautifulSoup(response.text, 'lxml').find('binarysecuritytoken').string
-    return self.auth_token
+    try:
+      self.auth_token = BeautifulSoup(response.text, 'lxml').find('binarysecuritytoken').string
+      return self.auth_token
+    except AttributeError:
+      print(' * Authentication failure. Please verify your credentials and environment')
+      sys.exit()
 
 
   ##
