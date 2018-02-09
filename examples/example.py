@@ -21,8 +21,7 @@ sources = session.search_sources(query='times')
 source_details = session.get_source_details(source_id=161887)
 
 # run a query for a keyword within a given source id
-results = session.search(query='peppers', source_id=161887,
-    start_date='2017-10-01', end_date='2017-10-24',
-    save_results=True, return_results=True)
-
-print(results)
+for result_packet in session.search(query='peppers', source_id=161887,
+    start_date='2017-10-01', end_date='2017-10-24', yield_results=True):
+  if len(result_packet):
+    print(result_packet)

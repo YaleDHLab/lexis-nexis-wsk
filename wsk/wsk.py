@@ -82,9 +82,9 @@ class WSK:
   # Search Method
   ##
 
-  def search(self, query, source_id, start_date='2017-12-01',
-    end_date='2017-12-02', return_results=False, save_results=True,
-    get_text=True):
+  def search(self, query, source_id, get_text=True,
+    start_date='2017-12-01', end_date='2017-12-02',
+    return_results=False, save_results=True, yield_results=False):
     '''
     Run a full query for the user, fetching all doc metadata and content
 
@@ -118,8 +118,7 @@ class WSK:
         end_date_str = self.date_to_string(query_end_date)
         query_result = self.run_search(query, source_id, begin=query_begin,
             end=query_end, start_date=start_date_str, end_date=end_date_str,
-            return_results=return_results, save_results=save_results,
-            get_text=get_text)
+            save_results=save_results, get_text=get_text)
 
         # case where query returned no results
         if query_result['total_matches'] == 0:
@@ -135,9 +134,10 @@ class WSK:
             more_days_to_query = False
 
         # only append to results in RAM if necessary
-        # TODO: guard against excessive RAM usage
         if return_results:
           user_results += query_result['results']
+        if yield_results:
+          yield query_result['results']
 
         # update the total number of matches to fetch (=inf on error & start)
         end = float(query_result['total_matches'])
@@ -172,8 +172,7 @@ class WSK:
 
 
   def run_search(self, query, source_id, begin=1, end=10, start_date='2017-12-01',
-      end_date='2017-12-02', return_results=False, save_results=True,
-      get_text=True):
+      end_date='2017-12-02', save_results=True, get_text=True):
     '''
     Method that actually submits search requests. Called from self.search(),
     which controls the logic that constructs the individual searches
@@ -183,7 +182,6 @@ class WSK:
     @param: {int} end: the ending result number to return
     @param: {str} start_date: the starting query date in string format
     @param: {str} end_date: the ending query date in string format
-    @param: {bool} return_results: return matches to the parent function
     @param: {bool} save_results: save matches to mongo
     @param: {bool} get_text: fetch full text content for each match
     @returns: {obj} an object with metadata describing search results data
