@@ -18,10 +18,12 @@ token = session.authenticate(username=os.environ['WSK_USERNAME'],
 sources = session.search_sources(query='times')
 
 # get the included and excluded publication titles for a source id
-source_details = session.get_source_details(source_id=161887)
+source_details = session.get_source_details(source_id=8399)
 
 # run a query for a keyword within a given source id
-for result_packet in session.search(query='peppers', source_id=161887,
-    start_date='2017-10-01', end_date='2017-10-24', yield_results=True):
-  if len(result_packet):
-    print(result_packet)
+results = []
+for result_packet in session.search(query='parabola', source_id=8399,
+    start_date='2017-08-01', end_date='2017-08-20', yield_results=True):
+  if result_packet:
+    results += list(result_packet)
+print(results)
