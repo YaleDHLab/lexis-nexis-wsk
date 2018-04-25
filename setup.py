@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup (
   name='wsk',
-  version='0.1.8',
+  version='0.1.9',
   packages=['wsk'],
   description="A light wrapper for LexisNexis's Web Services Kit API",
   url='https://github.com/YaleDHLab/lexis-nexis-wsk',
