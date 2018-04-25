@@ -1,1 +1,1 @@
-from wsk.wsk import WSK
+from .wsk import WSK

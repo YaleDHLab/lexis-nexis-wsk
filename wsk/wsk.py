@@ -39,7 +39,7 @@ class WSK:
   def get_headers(self, request):
     '''
     Get the headers for a query with the right content length attribute
-    @param {str} request: an XML request object to be POST'ed to the WSK server 
+    @param {str} request: an XML request object to be POST'ed to the WSK server
     @returns {obj}: the headers to be used in a WSK request
     '''
     return {
@@ -54,7 +54,7 @@ class WSK:
     '''
     Set the WSK's auth_token attribute by authenticating with the WSK servers
     @param {str} username: the user's WSK username
-    @param {str} password: the user's WSK password 
+    @param {str} password: the user's WSK password
     '''
     request = '''
       <SOAP-ENV:Envelope
@@ -167,8 +167,7 @@ class WSK:
           if time_delta > 1:
             time_delta -= 1
           else: print(' * Abort!')
-    if return_results:
-      return user_results
+    yield user_results
 
 
   def run_search(self, query, source_id, begin=1, end=10, start_date='2017-12-01',
@@ -302,7 +301,7 @@ class WSK:
     '''
     @param: {BeautifulSoup}: the result of a search() query
     @returns: {arr}: a list of objects, each describing a match's metadata
-    ''' 
+    '''
     docs = []
     for c, i in enumerate(soup.find_all('ns1:documentcontainer')):
       try:
@@ -356,7 +355,7 @@ class WSK:
 
   def search_sources(self, query):
     '''
-    @param: {str} query: a query for sources 
+    @param: {str} query: a query for sources
     @returns: {arr}: a list of source metadata objects that match the query
     '''
     request = '''
@@ -415,7 +414,7 @@ class WSK:
         </soap:Body>
       </SOAP-ENV:Envelope>
       '''.format(self.auth_token, source_id)
-    
+
     url = self.get_url('Source')
     response = requests.post(url=url, headers=self.get_headers(request), data=request)
     soup = BeautifulSoup(response.text, 'lxml')
@@ -505,7 +504,7 @@ class Document(dict):
 
   def get_doc_headline(self, soup):
     '''
-    @param {BeautifulSoup} soup: the soup from a documentcontainer tag 
+    @param {BeautifulSoup} soup: the soup from a documentcontainer tag
     @returns {str} the headline from a document
     '''
     try:
