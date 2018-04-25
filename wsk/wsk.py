@@ -1,6 +1,7 @@
 from pymongo import MongoClient
 from bs4 import BeautifulSoup, element
 from datetime import datetime, timedelta
+from random import random
 import base64
 import calendar
 import copy
@@ -79,274 +80,109 @@ class WSK:
 
 
   ##
-  # Search Method
+  # Browse Sources
   ##
 
-  def search(self, query, source_id, get_text=True,
-    start_date='2017-12-01', end_date='2017-12-02',
-    return_results=False, save_results=True, yield_results=False):
+  def get_all_sources(self):
     '''
-    Run a full query for the user, fetching all doc metadata and content
-
-    @param: {str} query: the user's document query phrase
-    @param: {int} source_id: the source id to which queries will be addressed
-    @param: {str} start_date: the starting query date in string format
-    @param: {str} end_date: the ending query date in string format
-    @param: {bool} return_results: return matches to the parent function
-    @param: {bool} store_results: save matches to mongo
-    @param: {bool} get_text: fetch full text content for each match
-    @returns: {obj} an object with metadata describing search results data
+    Get a list of the sources available to the current account. To do so, find
+    all source types, then descend down the tree of folders to find all
+    sources / leaf nodes. NB: Different folders have different depths one must
+    descend to find sources / leaf nodes.
     '''
-    user_results = []  # results to return to user
-    per_page = 10      # results per page
-    time_delta = 1     # time stride in days
-    start_date, end_date = self.get_search_dates(start_date, end_date)
-    query_start_date = start_date
-    query_end_date = start_date + timedelta(days=time_delta)
-    more_days_to_query = True
-    more_pages_to_query = True
-
-    while more_days_to_query:
-      # initialize pagination params for the new page
-      # query_begin and end marks the `begin` and `end` XML values for a query
-      query_begin = 1
-      query_end = per_page
-      end = float('inf')
-
-      while more_pages_to_query or more_days_to_query:
-        start_date_str = self.date_to_string(query_start_date)
-        end_date_str = self.date_to_string(query_end_date)
-        query_result = self.run_search(query, source_id, begin=query_begin,
-            end=query_end, start_date=start_date_str, end_date=end_date_str,
-            save_results=save_results, get_text=get_text)
-
-        # case where query returned no results
-        if query_result['total_matches'] == 0:
-          more_pages_to_query = False
-          # case where there are more dates to cover
-          if query_end_date < end_date:
-            # slide the date window forward and reset the pagination values
-            query_start_date = query_start_date + timedelta(days=time_delta)
-            query_end_date = query_start_date + timedelta(days=time_delta)
-            query_begin = 1
-            query_end = per_page
-          else:
-            more_days_to_query = False
-
-        # only append to results in RAM if necessary
-        if return_results:
-          user_results += query_result['results']
-        if yield_results:
-          yield query_result['results']
-
-        # update the total number of matches to fetch (=inf on error & start)
-        end = float(query_result['total_matches'])
-
-        # validate whether the request succeeded or errored
-        if query_result['status_code'] == 200:
-          # continue paginating over responses for the current date range
-          if query_end < end:
-            query_begin += per_page
-            query_end += per_page
-          # pagination is done, check whether to slide the date window forward
-          else:
-            more_pages_to_query = False
-            # case where there are more dates to cover
-            if query_end_date < end_date:
-              # slide the date window forward and reset the pagination values
-              query_start_date = query_start_date + timedelta(days=time_delta)
-              query_end_date = query_start_date + timedelta(days=time_delta)
-              query_begin = 1
-              query_end = per_page
-              # also potentially increment the time delta for longer strides
-              if query_result['total_matches'] < (per_page/2): time_delta += 1
-            # we're done!
-            else: more_days_to_query = False
-        # the request failed, so decrement time_delta or flail
-        else:
-          if time_delta > 1:
-            time_delta -= 1
-          else: print(' * Abort!')
-    yield user_results
-
-
-  def run_search(self, query, source_id, begin=1, end=10, start_date='2017-12-01',
-      end_date='2017-12-02', save_results=True, get_text=True):
-    '''
-    Method that actually submits search requests. Called from self.search(),
-    which controls the logic that constructs the individual searches
-    @param: {str} query: the user's document query phrase
-    @param: {int} source_id: the source id to which queries will be addressed
-    @param: {int} begin: the starting result number to return
-    @param: {int} end: the ending result number to return
-    @param: {str} start_date: the starting query date in string format
-    @param: {str} end_date: the ending query date in string format
-    @param: {bool} save_results: save matches to mongo
-    @param: {bool} get_text: fetch full text content for each match
-    @returns: {obj} an object with metadata describing search results data
-    '''
-    print(' * querying for', query, source_id, begin, end, start_date, end_date)
-
-    request = '''
-      <SOAP-ENV:Envelope
-          xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
-          SOAP-ENV:encodingStyle= "http://schemas.xmlsoap.org/soap/encoding/">
-        <soap:Body xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-          <Search xmlns="http://search.search.services.v1.wsapi.lexisnexis.com">
-            <binarySecurityToken>{0}</binarySecurityToken>
-            <sourceInformation>
-              <sourceIdList xmlns="http://common.search.services.v1.wsapi.lexisnexis.com">
-                <sourceId xmlns="http://common.services.v1.wsapi.lexisnexis.com">{1}</sourceId>
-              </sourceIdList>
-            </sourceInformation>
-            <query>{2}</query>
-            <projectId>{3}</projectId>
-            <searchOptions>
-              <sortOrder xmlns="http://common.search.services.v1.wsapi.lexisnexis.com">Date</sortOrder>
-              <dateRestriction xmlns="http://common.search.services.v1.wsapi.lexisnexis.com">
-                <startDate>{4}</startDate>
-                <endDate>{5}</endDate>
-              </dateRestriction>
-            </searchOptions>
-            <retrievalOptions>
-              <documentView xmlns="http://result.common.services.v1.wsapi.lexisnexis.com">Cite</documentView>
-              <documentMarkup xmlns="http://result.common.services.v1.wsapi.lexisnexis.com">Display</documentMarkup>
-              <documentRange xmlns="http://result.common.services.v1.wsapi.lexisnexis.com">
-                <begin>{6}</begin>
-                <end>{7}</end>
-              </documentRange>
-            </retrievalOptions>
-          </Search>
-        </soap:Body>
-      </SOAP-ENV:Envelope>
-      '''.format(self.auth_token, source_id, query, self.project_id,
-          start_date, end_date, begin, end)
-    url = self.get_url('Search')
-
-    try:
-      response = requests.post(url=url, headers=self.get_headers(request), data=request)
-      soup = BeautifulSoup(response.text, 'lxml')
-      result_packet = {}
-      result_packet['status_code'] = response.status_code
-      result_packet['total_matches'] = 0
-      result_packet['results'] = []
-
-      try:
-        result_packet['total_matches'] = int( soup.find('ns3:documentsfound').string )
-      except AttributeError:
-        result_packet['total_matches'] = 0
-
-      if (result_packet['total_matches'] == 0) or (result_packet['status_code'] != 200):
-        return result_packet
+    # populate list of sources available to account
+    sources = []
+    # find the top order folder
+    root_folders = self.browse_sources()
+    # use the first source grouping folder to recurse through the folder hierarchy
+    sub_folders = self.browse_sources(root_folders[0]['folder_id'])
+    # descend into all sub folders and add any newly discovered sub folders to this list
+    while sub_folders:
+      sub_folder = sub_folders.pop(0)
+      print(' * fetching sources in', sub_folder)
+      # some results will contain parent folders, others contain source / leaf nodes
+      result = self.browse_sources(sub_folder['folder_id'])
+      if 'source_id' not in result[0]:
+        sub_folders += result
       else:
-        result_packet['results'] = self.get_documents(soup, get_text)
-
-      if save_results: self.save_results(result_packet['results'])
-
-    except Exception as exc:
-      if self.verbose: print('search request failed', exc)
-
-    return result_packet
+        sources += result
+    return sources
 
 
-  def save_results(self, results):
+  def browse_sources(self, folder_id=''):
     '''
-    Save all search results to the database
-    @param: {arr} results: a list of search result objects
+    Query for the sources to which the account has access. LexisNexis organizes
+    sources into "folders". Each folder contains subfolders, which contain source
+    information. To find all sources to which your account has access, one can choose
+    a folder_id, find all subfolders, then find all sources within each of those
+    subfolders and use the resulting set of sources.
+    @param {str} folder_id: The high order folder to search for sources. If a
+      folder_id is not provided, the query result will contain a list of available
+      folder names and folder ids.
+    @returns {obj} If the user did not provide a folder_id, obj will be a list
+      of objects, where each object has name and folder_id attributes that describe
+      a top-level folder.
+
+      If the user provided a folder_id and that folder_id has children folders, obj
+      will contain a list of objects, where each object has name and folder_id attributes
+      that describe a subfolder within the queried folder_id.
+
+      If the user provided a folder_id and that folder_id contains a list of sources,
+      obj will contain a list of objects where each object contains source_id,
+      type, name, and other metadata attributes.
     '''
-    if not self.db:
-      raise Exception('Please call set_db() before saving records')
-      return
-
-    if not results: return
-
-    composed_results = []
-    copied = copy.deepcopy(results)
-    for i in copied:
-      i['session_id'] = self.session_id
-      i['project_id'] = self.project_id
-      composed_results.append(i)
-    self.db.results.insert_many(composed_results)
-
-
-  def get_search_dates(self, start_date, end_date):
-    '''
-    @param {str} start_date: the starting date for the query: '2017-12-01'
-    @param {str} end_date: the ending date for the query: '2017-12-02'
-    @returns datetime, datetime: the start and end dates as datetime objects
-    '''
-    start_date = self.string_to_date(start_date)
-    end_date = self.string_to_date(end_date)
-    return start_date, end_date
-
-
-  def string_to_date(self, string_date):
-    '''
-    @param: {str} string_date: a date in string format: '2017-12-01'
-    @returns: {datetime}: the input date in datetime format
-    '''
-    year, month, day = [int(i) for i in string_date.split('-')]
-    return datetime(year, month, day)
-
-
-  def date_to_string(self, datetime_date):
-    '''
-    @param: {datetime}: a datetime object
-    @returns: {str}: the input datetime in string format: 'YYYY-MM-DD'
-    '''
-    return datetime_date.strftime('%Y-%m-%d')
-
-
-  def get_documents(self, soup, get_text=True):
-    '''
-    @param: {BeautifulSoup}: the result of a search() query
-    @returns: {arr}: a list of objects, each describing a match's metadata
-    '''
-    docs = []
-    for c, i in enumerate(soup.find_all('ns1:documentcontainer')):
-      try:
-        doc = Document(i).metadata
-        if get_text:
-          doc['full_text'] = self.get_full_text(doc['doc_id'])
-        docs.append(doc)
-      except Exception as exc:
-        print(' * could not process', c, exc)
-    return docs
-
-
-  ##
-  # Get Full Text Content
-  ##
-
-  def get_full_text(self, document_id):
-    '''
-    @param: {int}: a document's id number
-    @returns:
-    '''
+    # assemble the folder argument to be passed to the soap request
+    folder_arg = '<folderId>{0}</folderId>'.format(folder_id) if folder_id else ''
+    # assemble the browse source query
     request = '''
-      <SOAP-ENV:Envelope
-          xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
-          SOAP-ENV:encodingStyle= "http://schemas.xmlsoap.org/soap/encoding/">
-        <soap:Body xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-          <GetDocumentsByDocumentId xmlns="http://getdocumentsbydocumentid.retrieve.services.v1.wsapi.lexisnexis.com">
-            <binarySecurityToken>{0}</binarySecurityToken>
-            <documentIdList>
-              <documentId>{1}</documentId>
-            </documentIdList>
-            <retrievalOptions>
-              <documentView>FullTextWithTerms</documentView>
-              <documentMarkup>Display</documentMarkup>
-            </retrievalOptions>
-          </GetDocumentsByDocumentId>
-        </soap:Body>
-      </SOAP-ENV:Envelope>
-      '''.format(self.auth_token, document_id)
-
-    url = self.get_url('Retrieval')
+    <SOAP-ENV:Envelope
+        xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+        SOAP-ENV:encodingStyle= "http://schemas.xmlsoap.org/soap/encoding/">
+      <soap:Body xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+        <BrowseSources xmlns="http://browsesources.source.services.v1.wsapi.lexisnexis.com">
+          <locale>en-US</locale>
+          <binarySecurityToken>{0}</binarySecurityToken>
+          {1}
+        </BrowseSources>
+      </soap:Body>
+    </SOAP-ENV:Envelope>
+    '''.format(self.auth_token, folder_arg)
+    url = self.get_url('Source')
     response = requests.post(url=url, headers=self.get_headers(request), data=request)
-    soup = BeautifulSoup(response.text, 'xml')
-    doc = base64.b64decode(soup.document.text).decode('utf8')
-    return doc
+    soup = BeautifulSoup(response.text, 'lxml')
+    results = []
+
+    # parse out the sources identified for this query
+    # nb: sources have differnet namespace prefixes
+    sources = []
+    for i in soup.find('sourcelist').findChildren():
+      if 'source' in i.name:
+        if 'sourceid' not in i.name and 'premiumsource' not in i.name:
+          sources.append(i)
+
+    # case where query result contains sources
+    if sources:
+      for i in sources:
+        results.append({
+          'name': find_tag_by_name(i, 'name').get_text(),
+          'source_id': int(find_tag_by_name(i, 'sourceid').get_text()),
+          'type': find_tag_by_name(i, 'type').get_text(),
+          'premium_source': find_tag_by_name(i, 'premiumsource').get_text(),
+          'has_index': bool(find_tag_by_name(i, 'hasindex').get_text()),
+          'has_toc': bool(find_tag_by_name(i, 'hastoc').get_text()),
+          'versionable': bool(find_tag_by_name(i, 'versionable').get_text()),
+          'is_page_browsable': bool(find_tag_by_name(i, 'ispagebrowsable').get_text()),
+        })
+
+    # case where query result contains folders
+    else:
+      for i in soup.find_all('folder'):
+        results.append({
+          'name': i.find('name').get_text(),
+          'folder_id': i.find('folderid').get_text()
+        })
+
+    return results
 
 
   ##
@@ -391,6 +227,7 @@ class WSK:
         'combinability': combinable_list
       })
     return sources
+
 
   ##
   # Get Source Details
@@ -459,6 +296,289 @@ class WSK:
     return elems
 
 
+  ##
+  # Search Method
+  ##
+
+  def search(self,
+    query,
+    source_id,
+    get_text=True,
+    start_date='2017-12-01',
+    end_date='2017-12-02',
+    return_results=False,
+    save_results=True,
+    yield_results=False):
+    '''
+    Run a full query for the user, fetching all doc metadata and content
+
+    @param: {str} query: the user's document query phrase
+    @param: {int} source_id: the source id to which queries will be addressed
+    @param: {str} start_date: the starting query date in string format
+    @param: {str} end_date: the ending query date in string format
+    @param: {bool} yield_results: stream results to the parent function
+    @param: {bool} return_results: return matches to the parent function
+    @param: {bool} store_results: save matches to mongo
+    @param: {bool} get_text: fetch full text content for each match
+    @returns: {obj} an object with metadata describing search results data
+    '''
+    user_results = []  # results to return to user
+    per_page = 10      # results per page
+    time_delta = 1     # time stride in days
+    start_date, end_date = self.get_search_dates(start_date, end_date)
+    query_start_date = start_date
+    query_end_date = start_date + timedelta(days=time_delta)
+    more_days_to_query = True
+    more_pages_to_query = True
+
+    while more_days_to_query:
+      # initialize pagination params for the new page
+      # query_begin and end marks the `begin` and `end` XML values for a query
+      query_begin = 1
+      query_end = per_page
+      end = float('inf')
+
+      while more_pages_to_query or more_days_to_query:
+        start_date_str = self.date_to_string(query_start_date)
+        end_date_str = self.date_to_string(query_end_date)
+        query_result = self.run_search(query, source_id, begin=query_begin,
+            end=query_end, start_date=start_date_str, end_date=end_date_str,
+            save_results=save_results, get_text=get_text)
+
+        # case where query returned no results
+        if query_result['total_matches'] == 0:
+          more_pages_to_query = False
+          # case where there are more dates to cover
+          if query_end_date < end_date:
+            # slide the date window forward and reset the pagination values
+            query_start_date = query_start_date + timedelta(days=time_delta)
+            query_end_date = query_start_date + timedelta(days=time_delta)
+            query_begin = 1
+            query_end = per_page
+          else:
+            more_days_to_query = False
+
+        # only append to results in RAM if necessary
+        if return_results: user_results += query_result['results']
+        if yield_results: yield query_result['results']
+
+        # update the total number of matches to fetch (=inf on error & start)
+        end = float(query_result['total_matches'])
+
+        # validate whether the request succeeded or errored
+        if query_result['status_code'] == 200:
+          # continue paginating over responses for the current date range
+          if query_end < end:
+            query_begin += per_page
+            query_end += per_page
+          # pagination is done, check whether to slide the date window forward
+          else:
+            more_pages_to_query = False
+            # case where there are more dates to cover
+            if query_end_date < end_date:
+              # slide the date window forward and reset the pagination values
+              query_start_date = query_start_date + timedelta(days=time_delta)
+              query_end_date = query_start_date + timedelta(days=time_delta)
+              query_begin = 1
+              query_end = per_page
+              # also potentially increment the time delta for longer strides
+              if query_result['total_matches'] < (per_page/2): time_delta += 1
+            # we're done!
+            else: more_days_to_query = False
+        # the request failed, so decrement time_delta or flail
+        else:
+          if time_delta > 1:
+            time_delta -= 1
+          else: print(' * Abort!')
+    if return_results:
+      yield user_results
+
+
+  def run_search(self,
+    query,
+    source_id,
+    begin=1,
+    end=10,
+    start_date='2017-12-01',
+    end_date='2017-12-02',
+    save_results=True,
+    get_text=True):
+    '''
+    Method that actually submits search requests. Called from self.search(),
+    which controls the logic that constructs the individual searches
+    @param: {str} query: the user's document query phrase
+    @param: {int} source_id: the source id to which queries will be addressed
+    @param: {int} begin: the starting result number to return
+    @param: {int} end: the ending result number to return
+    @param: {str} start_date: the starting query date in string format
+    @param: {str} end_date: the ending query date in string format
+    @param: {bool} save_results: save matches to mongo
+    @param: {bool} get_text: fetch full text content for each match
+    @returns: {obj} an object with metadata describing search results data
+    '''
+    print(' * querying for', query, source_id, begin, end, start_date, end_date)
+
+    request = '''
+      <SOAP-ENV:Envelope
+          xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+          SOAP-ENV:encodingStyle= "http://schemas.xmlsoap.org/soap/encoding/">
+        <soap:Body xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+          <Search xmlns="http://search.search.services.v1.wsapi.lexisnexis.com">
+            <binarySecurityToken>{0}</binarySecurityToken>
+            <sourceInformation>
+              <sourceIdList xmlns="http://common.search.services.v1.wsapi.lexisnexis.com">
+                <sourceId xmlns="http://common.services.v1.wsapi.lexisnexis.com">{1}</sourceId>
+              </sourceIdList>
+            </sourceInformation>
+            <query>{2}</query>
+            <projectId>{3}</projectId>
+            <searchOptions>
+              <sortOrder xmlns="http://common.search.services.v1.wsapi.lexisnexis.com">Date</sortOrder>
+              <dateRestriction xmlns="http://common.search.services.v1.wsapi.lexisnexis.com">
+                <startDate>{4}</startDate>
+                <endDate>{5}</endDate>
+              </dateRestriction>
+            </searchOptions>
+            <retrievalOptions>
+              <documentView xmlns="http://result.common.services.v1.wsapi.lexisnexis.com">Cite</documentView>
+              <documentMarkup xmlns="http://result.common.services.v1.wsapi.lexisnexis.com">Display</documentMarkup>
+              <documentRange xmlns="http://result.common.services.v1.wsapi.lexisnexis.com">
+                <begin>{6}</begin>
+                <end>{7}</end>
+              </documentRange>
+            </retrievalOptions>
+          </Search>
+        </soap:Body>
+      </SOAP-ENV:Envelope>
+      '''.format(self.auth_token, source_id, query, self.project_id,
+          start_date, end_date, begin, end)
+    url = self.get_url('Search')
+
+    response = requests.post(url=url, headers=self.get_headers(request), data=request)
+    soup = BeautifulSoup(response.text, 'lxml')
+    result_packet = {}
+    result_packet['status_code'] = response.status_code
+    result_packet['total_matches'] = 0
+    result_packet['results'] = []
+
+    try:
+      result_count_tag = find_tag_by_name(soup, 'documentsfound')
+      result_packet['total_matches'] = int(result_count_tag.get_text())
+    except AttributeError:
+      result_packet['total_matches'] = 0
+
+    if (result_packet['total_matches'] == 0) or (result_packet['status_code'] != 200):
+      return result_packet
+    else:
+      result_packet['results'] = self.get_documents(soup, get_text)
+
+    if save_results: self.save_results(result_packet['results'])
+
+    return result_packet
+
+
+  def save_results(self, results):
+    '''
+    Save all search results to the database
+    @param: {arr} results: a list of search result objects
+    '''
+    if not self.db:
+      raise Exception('Please call set_db() before saving records')
+      return
+
+    if not results: return
+
+    composed_results = []
+    copied = copy.deepcopy(results)
+    for i in copied:
+      i['session_id'] = self.session_id
+      i['project_id'] = self.project_id
+      composed_results.append(i)
+    self.db.results.insert_many(composed_results)
+
+
+  def get_search_dates(self, start_date, end_date):
+    '''
+    @param {str} start_date: the starting date for the query: '2017-12-01'
+    @param {str} end_date: the ending date for the query: '2017-12-02'
+    @returns datetime, datetime: the start and end dates as datetime objects
+    '''
+    return self.string_to_date(start_date), self.string_to_date(end_date)
+
+
+  def string_to_date(self, string_date):
+    '''
+    @param: {str} string_date: a date in string format: '2017-12-01'
+    @returns: {datetime}: the input date in datetime format
+    '''
+    year, month, day = [int(i) for i in string_date.split('-')]
+    return datetime(year, month, day)
+
+
+  def date_to_string(self, datetime_date):
+    '''
+    @param: {datetime}: a datetime object
+    @returns: {str}: the input datetime in string format: 'YYYY-MM-DD'
+    '''
+    return datetime_date.strftime('%Y-%m-%d')
+
+
+  def get_documents(self, soup, get_text=True):
+    '''
+    @param: {BeautifulSoup}: the result of a search() query
+    @returns: {arr}: a list of objects, each describing a match's metadata
+    '''
+    # create a store of processed documents
+    docs = []
+    # find list of document containers
+    doc_containers = []
+    for i in soup.findChildren():
+      if 'documentcontainer' in i.name and 'documentcontainerlist' not in i.name:
+        doc_containers.append(i)
+    for idx, i in enumerate(doc_containers):
+      try:
+        doc = Document(i).metadata
+        if get_text:
+          doc['full_text'] = self.get_full_text(doc['doc_id'])
+        docs.append(doc)
+      except Exception as exc:
+        print(' ! could not process doc', idx, exc)
+    return docs
+
+  ##
+  # Get Full Text Content
+  ##
+
+  def get_full_text(self, document_id):
+    '''
+    @param: {int}: a document's id number
+    @returns:
+    '''
+    request = '''
+      <SOAP-ENV:Envelope
+          xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+          SOAP-ENV:encodingStyle= "http://schemas.xmlsoap.org/soap/encoding/">
+        <soap:Body xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+          <GetDocumentsByDocumentId xmlns="http://getdocumentsbydocumentid.retrieve.services.v1.wsapi.lexisnexis.com">
+            <binarySecurityToken>{0}</binarySecurityToken>
+            <documentIdList>
+              <documentId>{1}</documentId>
+            </documentIdList>
+            <retrievalOptions>
+              <documentView>FullTextWithTerms</documentView>
+              <documentMarkup>Display</documentMarkup>
+            </retrievalOptions>
+          </GetDocumentsByDocumentId>
+        </soap:Body>
+      </SOAP-ENV:Envelope>
+      '''.format(self.auth_token, document_id)
+
+    url = self.get_url('Retrieval')
+    response = requests.post(url=url, headers=self.get_headers(request), data=request)
+    soup = BeautifulSoup(response.text, 'xml')
+    return base64.b64decode(soup.document.text).decode('utf8')
+
+
 class Document(dict):
   def __init__(self, document_soup):
     self.verbose = False
@@ -480,16 +600,16 @@ class Document(dict):
     @returns: {obj}: an object with metadata attributes from the decoded doc
     '''
     formatted = {}
-    decoded = base64.b64decode(soup.find('ns1:document').string)
+    decoded = base64.b64decode(soup.find('ns1:document').get_text())
     doc_soup = BeautifulSoup(decoded, 'lxml')
     if self.include_meta:
       for i in doc_soup.find_all('meta'):
         try:
           formatted[ i['name'] ] = i['content']
         except Exception as exc:
-          if self.verbose: print(i['name'], exc)
+          if self.verbose: print(' ! error formatting doc', i['name'], exc)
 
-    formatted['doc_id'] = soup.find('ns1:documentid').string
+    formatted['doc_id'] = soup.find('ns1:documentid').get_text()
     formatted['headline'] = self.get_doc_headline(doc_soup)
     formatted['attachment_id'] = self.get_doc_attachment_id(doc_soup)
     formatted['pub'] = self.get_doc_pub(doc_soup)
@@ -511,7 +631,7 @@ class Document(dict):
       headline = soup.find('div', {'class': 'HEADLINE'}).string
       return headline if headline else ''
     except Exception as exc:
-      if self.verbose: print('headline', exc)
+      if self.verbose: print(' ! error parsing headline', exc)
       return ''
 
 
@@ -524,7 +644,7 @@ class Document(dict):
       attachment_node = soup.find('span', {'class': 'attachmentId'})['id']
       return attachment_node if attachment_node else ''
     except Exception as exc:
-      if self.verbose: print('doc_attachment', exc)
+      if self.verbose: print(' ! error parsing doc_attachment', exc)
       return ''
 
 
@@ -537,7 +657,7 @@ class Document(dict):
       pub = soup.find('div', {'class': 'PUB'}).string
       return pub if pub else ''
     except Exception as exc:
-      if self.verbose: print('doc_pub', exc)
+      if self.verbose: print(' ! error parsing doc_pub', exc)
       return ''
 
 
@@ -550,7 +670,7 @@ class Document(dict):
       date = soup.find('div', {'class': 'PUB-DATE'}).find('span').string
       return date if date else ''
     except Exception as exc:
-      if self.verbose: print('doc_pub_date', exc)
+      if self.verbose: print(' ! error parsing doc_pub_date', exc)
       return ''
 
 
@@ -563,5 +683,22 @@ class Document(dict):
       length = soup.find('div', {'class': 'LENGTH'}).string
       return length if length else ''
     except Exception as exc:
-      if self.verbose: print('doc_length', exc)
+      if self.verbose: print(' ! error parsing doc_length', exc)
       return ''
+
+##
+# Helpers
+##
+
+def find_tag_by_name(soup, tag_name):
+  '''
+  Given a BeautifulSoup object and a tag name, return the first
+  tag whose name contains `tag_name`
+  @param {BeautifulSoup} soup: a BeautifulSoup object
+  @param {str} tag_name: the name of the tag to find
+  @returns {BeautifulSoup} the first child whose name contains `tag_name`
+  '''
+  for tag in soup.findChildren():
+    if tag_name in tag.name:
+      return tag
+  return None
