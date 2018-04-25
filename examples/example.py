@@ -15,13 +15,13 @@ token = session.authenticate(username=os.environ['WSK_USERNAME'],
     password=os.environ['WSK_PASSWORD'])
 
 # find all sources available to account
-#all_sources = session.get_all_sources()
+all_sources = session.get_all_sources()
 
 # find all sources that contain 'times' in their titles
-#times_sources = session.search_sources(query='times')
+times_sources = session.search_sources(query='times')
 
 # get the included and excluded publication titles for a source id
-#source_details = session.get_source_details(source_id=8399)
+source_details = session.get_source_details(source_id=8399)
 
 # run a query for a keyword within a given source id
 results = []
