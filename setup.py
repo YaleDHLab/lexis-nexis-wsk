@@ -11,6 +11,8 @@ setup (
   license='MIT',
   install_requires=[
     'beautifulsoup4==4.5.1',
+    'lxml==3.6.4',
     'pymongo==3.3.1',
+    'requests==2.19.1'    
   ],
 )
