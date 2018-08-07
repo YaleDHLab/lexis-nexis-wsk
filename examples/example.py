@@ -11,8 +11,9 @@ session = WSK(environment='www.lexisnexis.com', project_id='cucumber@yale.edu')
 session.set_db(dbname='wsk', uri='mongodb://localhost:27017')
 
 # authenticate with the web service
-token = session.authenticate(username=os.environ['WSK_USERNAME'],
-    password=os.environ['WSK_PASSWORD'])
+user = os.environ['WSK_USERNAME']
+pw = os.environ['WSK_PASSWORD']
+token = session.authenticate(username=user, password=pw)
 
 # find all sources available to account
 all_sources = session.get_all_sources()
@@ -25,9 +26,13 @@ source_details = session.get_source_details(source_id=8399)
 
 # run a query for a keyword within a given source id
 results = []
-for result_packet in session.search(query='checkers', source_id=8399,
-    start_date='2017-08-01', end_date='2017-08-02', yield_results=True,
-    save_results=True):
+for result_packet in session.search(
+  query='checkers',
+  source_id=8399,
+  start_date='2017-08-01',
+  end_date='2017-08-02',
+  yield_results=True,
+  save_results=False):
   results += list(result_packet) if result_packet else []
 
 print(' * found the following results', results)
