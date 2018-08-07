@@ -6,7 +6,7 @@ This module provides convenience wrappers around the Lexis Nexis Web Services Ki
 
 To install this module and its dependencies, you can run:
 
-```
+```bash
 pip install wsk
 ```
 
@@ -14,7 +14,7 @@ pip install wsk
 
 To use the module, you can import the module and begin a session like so:
 
-```
+```python
 from wsk import WSK
 
 session = WSK(environment='www.lexisnexis.com', project_id='cucumber@yale.edu')
@@ -28,7 +28,7 @@ Project ids are optional; we use them to identify the patron who made a request.
 
 Before running any queries, you must authenticate with Lexis Nexis' WSK servers:
 
-```
+```python
 auth_token = session.authenticate(username='tonytiger', password='grrrrreat')
 ```
 
@@ -38,10 +38,10 @@ This returns an authentication token that can be used to make requests. The toke
 
 The primary purpose of this API wrapper is to make it easier to run searches against the Lexis Nexis WSK servers, which were constructed such that any query that would return more than 3000 results returns a 500 response. To get around those limits, the `search()` method breaks queries into smaller units and fetches results for each. To run a search, one can do:
 
-```
+```python
 result = session.search(query='mangoes', source_id=161887,
     start_date='2017-12-01', end_date='2017-12-02',
-    return_results=True, save_results=False)
+    yield_results=True, save_results=False)
 ```
 
 All metadata values provided by the WSK servers are preserved in the returned data:
@@ -63,15 +63,15 @@ All metadata values provided by the WSK servers are preserved in the returned da
     "pub": "",
     "pub_date": "December",
     "length": "1836  words"
-  }, ...
+  },
 ]
 ```
 
 ### Search Sources
 
-The WSK endpoints require one to identify a `source_id` for each query. Searching the WSK sources is a way of retrieving `source_id` values. 
+The WSK endpoints require one to identify a `source_id` for each query. Searching the WSK sources is a way of retrieving `source_id` values.
 
-```
+```python
 source_results = session.search_sources(query='times')
 ```
 
@@ -95,7 +95,6 @@ All metadata values provided by the WSK servers are preserved in the returned da
     "has_index": true,
     ...
   },
-  ...
 ]
 ```
 
@@ -103,7 +102,7 @@ All metadata values provided by the WSK servers are preserved in the returned da
 
 To find the publication titles within a source, one can run:
 
-```
+```python
 source_details = session.get_source_details(source_id=161887)
 ```
 
@@ -120,7 +119,8 @@ All metadata values provided by the WSK servers are preserved in the returned da
       "50 Plus Lifestyles*",
       "580 Split",
       "AAACN Viewpoint",
-      "AANA Journal", ...
+      "AANA Journal",
+      ...
     ]
   }
 ]
@@ -130,15 +130,15 @@ All metadata values provided by the WSK servers are preserved in the returned da
 
 A single query may return millions of documents, so instead of retrieving the results in RAM one can store query results on disk using a MongoDB. To do so, one can create a database connection as follows:
 
-```
+```python
 # specify the mongo db connection details
 session.set_db(dbname='wsk', uri='mongodb://localhost:27017')
 ```
 
 Then, when running search queries, save them in the db like so:
 
-```
+```python
 result = session.search(query='mangoes', source_id=161887,
     start_date='2017-12-01', end_date='2017-12-02',
-    return_results=False, save_results=True)
+    yield_results=False, save_results=True)
 ```
