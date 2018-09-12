@@ -12,9 +12,10 @@ import sys
 import math
 
 class WSK:
-  def __init__(self, environment='', project_id=''):
-    self.environment = environment
-    self.project_id = project_id
+  def __init__(self, *args, **kwargs):
+    self.environment = kwargs.get('environment', '')
+    self.project_id = kwargs.get('project_id', '')
+    self.parser = kwargs.get('parser', 'html.parser')
     self.auth_token = None
     self.verbose = True
     self.session_id = calendar.timegm(time.gmtime())
@@ -97,7 +98,7 @@ class WSK:
     headers = headers=self.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
     try:
-      soup = BeautifulSoup(response.text, 'lxml')
+      soup = BeautifulSoup(response.text, self.parser)
       self.auth_token = soup.find('binarysecuritytoken').string
       return self.auth_token
     except AttributeError:
@@ -176,7 +177,7 @@ class WSK:
     url = self.get_url('Source')
     headers = self.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
-    soup = BeautifulSoup(response.text, 'lxml')
+    soup = BeautifulSoup(response.text, self.parser)
     results = []
 
     # parse out the sources identified for this query
@@ -283,7 +284,7 @@ class WSK:
     url = self.get_url('Source')
     headers = self.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
-    soup = BeautifulSoup(response.text, 'lxml')
+    soup = BeautifulSoup(response.text, self.parser)
     sources = []
     for i in soup.find('sourceguidelist').find_all('sourceguide'):
       sources.append(self.parse_source_details(i))
@@ -297,7 +298,7 @@ class WSK:
     @returns: {obj}: an object that details the titles in the current source
     '''
     source = base64.b64decode(soup.string)
-    source_soup = BeautifulSoup(source, 'lxml')
+    source_soup = BeautifulSoup(source, self.parser)
     exclusions = source_soup.find('div', {'EXCLUSIONS'}).find_all('p')[3]
     return dict({
       'source_name': source_soup.find('div', {'class': 'PUBLICATION-NAME'}).text,
@@ -505,7 +506,7 @@ class Search:
         return self.search()
       else:
         print(' ! Please submit a more specific search')
-    soup = BeautifulSoup(response.text, 'lxml')
+    soup = BeautifulSoup(response.text, self.session.parser)
     self.search_id = self.get_search_id(soup)
     self.total_results = self.get_result_count(soup)
     if self.total_results == 0:
@@ -572,7 +573,7 @@ class Search:
     url = self.session.get_url('Retrieval')
     headers = self.session.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
-    soup = BeautifulSoup(response.text, 'lxml')
+    soup = BeautifulSoup(response.text, self.session.parser)
     return self.get_documents(soup)
 
 
@@ -629,7 +630,7 @@ class Document(dict):
     '''
     formatted = {}
     decoded = base64.b64decode(soup.find('ns1:document').get_text())
-    doc_soup = BeautifulSoup(decoded, 'lxml')
+    doc_soup = BeautifulSoup(decoded, self.session.parser)
     if self.include_meta:
       for i in doc_soup.find_all('meta'):
         try:
