@@ -10,6 +10,7 @@ import requests
 import time
 import sys
 import math
+import re
 
 class WSK:
   def __init__(self, *args, **kwargs):
@@ -239,20 +240,21 @@ class WSK:
     url = self.get_url('Source')
     headers = self.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
-    soup = BeautifulSoup(response.text, 'xml')
+    soup = BeautifulSoup(response.text, self.parser)
     sources = []
-    for i in soup.find_all('source'):
+    for i in soup.find('sourcelist').find_all(recursive=False):
       combinable_list = []
-      for j in i.find_all('combinability'):
+      for j in i.find_all(re.compile('.:combinability')):
         combinable_list.append(j.text)
+      # use re.compile to search within namespace
       sources.append({
-        'name': i.find('name').text,
-        'source_id': int(i.find('sourceId').text),
-        'type': i.find('type').text,
-        'premium_source': bool(i.find('premiumSource').text),
-        'has_index': bool(i.find('hasIndex').text),
-        'versionable': bool(i.find('versionable').text),
-        'is_page_browsable': bool(i.find('isPageBrowsable').text),
+        'name': i.find(re.compile('.:name')).text,
+        'source_id': int(i.find(re.compile('.:sourceid')).text),
+        'type': i.find(re.compile('type')).text,
+        'premium_source': bool(i.find(re.compile('.:premiumsource')).text),
+        'has_index': bool(i.find(re.compile('.:hasindex')).text),
+        'versionable': bool(i.find(re.compile('.:versionable')).text),
+        'is_page_browsable': bool(i.find(re.compile('.:ispagebrowsable')).text),
         'combinability': combinable_list
       })
     return sources
@@ -744,8 +746,9 @@ class Document(dict):
     url = self.session.get_url('Retrieval')
     headers = self.session.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
-    soup = BeautifulSoup(response.text, 'xml')
-    return base64.b64decode(soup.document.text).decode('utf8')
+    soup = BeautifulSoup(response.text, self.session.parser)
+    doc = soup.find(re.compile('.:document')).text
+    return base64.b64decode(doc)
 
 ##
 # Soup Helpers
