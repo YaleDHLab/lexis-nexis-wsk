@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from random import random
 import base64
 import calendar
-import copy
 import json
 import requests
 import time
@@ -14,9 +13,9 @@ import re
 
 class WSK:
   def __init__(self, *args, **kwargs):
-    self.environment = kwargs.get('environment', '')
-    self.project_id = kwargs.get('project_id', '')
-    self.parser = kwargs.get('parser', 'html.parser')
+    self.environment = kwargs.get('environment', '') # target wsk environment
+    self.project_id = kwargs.get('project_id', '') # for tracking usage
+    self.parser = kwargs.get('parser', 'html.parser') # for decoding html
     self.auth_token = None
     self.verbose = True
     self.session_id = calendar.timegm(time.gmtime())
@@ -66,7 +65,6 @@ class WSK:
       return
     prepared = []
     for i in results:
-      i = copy.deepcopy(i)
       i['session_id'] = self.session_id
       i['project_id'] = self.project_id
       prepared.append(i)
@@ -646,7 +644,8 @@ class Document(dict):
     formatted['pub_date'] = self.get_doc_pub_date(doc_soup)
     formatted['length'] = self.get_doc_length(doc_soup)
     if self.get_text:
-      formatted['full_text'] = self.get_full_text(formatted['doc_id'])
+      full_text = self.get_full_text(formatted['doc_id'])
+      formatted['full_text'] = full_text
     return formatted
 
 
