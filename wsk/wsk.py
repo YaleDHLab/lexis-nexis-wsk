@@ -322,19 +322,19 @@ class WSK:
     yield_results = kwargs.get('yield_results', False)
     results = []
 
-    query = Search(
+    self.query = Search(
       session=self,
       query=kwargs.get('query', None),
       source_id=kwargs.get('source_id', None),
       start_date=kwargs.get('start_date', '2017-12-01'),
-      end_date=kwargs.get('start_date', '2017-12-01'),
+      end_date=kwargs.get('end_date', '2017-12-01'),
       get_text=kwargs.get('get_text', True),
       per_page=kwargs.get('per_page', 10),
       save_results=save_results,
       yield_results=yield_results,
     )
 
-    for result in query.run():
+    for result in self.query.run():
       if yield_results:
         yield result
 
