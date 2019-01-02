@@ -746,8 +746,8 @@ class Document(dict):
     headers = self.session.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
     soup = BeautifulSoup(response.text, self.session.parser)
-    doc = soup.find(re.compile('.:document')).text
-    return base64.b64decode(doc)
+    doc = soup.find('ns1:document').text
+    return base64.b64decode(doc).decode('utf8')
 
 ##
 # Soup Helpers
