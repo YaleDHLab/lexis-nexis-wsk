@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 from random import random
 import base64
 import calendar
-import copy
 import json
 import requests
 import time
@@ -14,9 +13,9 @@ import re
 
 class WSK:
   def __init__(self, *args, **kwargs):
-    self.environment = kwargs.get('environment', '')
-    self.project_id = kwargs.get('project_id', '')
-    self.parser = kwargs.get('parser', 'html.parser')
+    self.environment = kwargs.get('environment', '') # target wsk environment
+    self.project_id = kwargs.get('project_id', '') # for tracking usage
+    self.parser = kwargs.get('parser', 'html.parser') # for decoding html
     self.auth_token = None
     self.verbose = True
     self.session_id = calendar.timegm(time.gmtime())
@@ -66,7 +65,6 @@ class WSK:
       return
     prepared = []
     for i in results:
-      i = copy.deepcopy(i)
       i['session_id'] = self.session_id
       i['project_id'] = self.project_id
       prepared.append(i)
@@ -322,19 +320,19 @@ class WSK:
     yield_results = kwargs.get('yield_results', False)
     results = []
 
-    query = Search(
+    self.query = Search(
       session=self,
       query=kwargs.get('query', None),
       source_id=kwargs.get('source_id', None),
       start_date=kwargs.get('start_date', '2017-12-01'),
-      end_date=kwargs.get('start_date', '2017-12-01'),
+      end_date=kwargs.get('end_date', '2017-12-01'),
       get_text=kwargs.get('get_text', True),
       per_page=kwargs.get('per_page', 10),
       save_results=save_results,
       yield_results=yield_results,
     )
 
-    for result in query.run():
+    for result in self.query.run():
       if yield_results:
         yield result
 
@@ -366,15 +364,6 @@ class Search:
     self.more_pages_to_query = True
 
 
-  def reset_result_indices(self):
-    '''
-    Set class attributes to fetch the first page of results
-    '''
-    self.result_start = 1
-    self.result_end = self.per_page
-    self.total_results = float('inf')
-
-
   def advance_result_indices(self):
     '''
     Slide the result indices one page forward
@@ -392,6 +381,14 @@ class Search:
     self.reset_result_indices()
 
 
+  def reset_result_indices(self):
+    '''
+    Set class attributes to fetch the first page of results
+    '''
+    self.result_start = 1
+    self.result_end = self.per_page
+
+
   def log_current_search(self):
     '''
     Log the current search parameters
@@ -400,10 +397,11 @@ class Search:
     end_date = date_to_string(self.query_end_date)
     print(' * querying for', self.query,
       '- source_id', self.source_id,
-      '- result_start', self.result_start,
-      '- result_end', self.result_end,
-      '- start_date', start_date,
-      '- end_date', end_date)
+      '- date_range ' + str(start_date) + ' to ' + str(end_date),
+      '- result_range ' +
+        str(self.result_start) + '-' +
+        str(self.result_end) +
+        ' of ' + str(self.total_results))
 
 
   def run(self):
@@ -431,20 +429,21 @@ class Search:
           # case where there are more dates to cover
           if self.query_end_date < self.end_date:
             self.advance_date_range()
+            break
           # case where we've processed all days
           else:
             self.more_days_to_query = False
         # continue paginating over results for the current date range
-        if self.result_end < self.total_results:
+        if self.result_end <= self.total_results:
           self.advance_result_indices()
         # pagination is done, check whether to slide the date window forward
         else:
           self.more_pages_to_query = False
           if self.query_end_date < self.end_date:
-           self.advance_date_range()
-           # check whether to extend the time advancing slide
-           if self.total_results < (self.per_page/2):
-            self.time_delta += 1
+            self.advance_date_range()
+            # check whether to extend the time advancing slide
+            if self.total_results < (self.per_page/2):
+              self.time_delta += 1
           else:
             self.more_days_to_query = False
 
@@ -454,8 +453,6 @@ class Search:
     Method that actually submits search requests. Called from self.search(),
     which controls the logic that constructs the individual searches
     '''
-    self.log_current_search()
-
     request = '''
       <SOAP-ENV:Envelope
           xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
@@ -511,6 +508,7 @@ class Search:
     soup = BeautifulSoup(response.text, self.session.parser)
     self.search_id = self.get_search_id(soup)
     self.total_results = self.get_result_count(soup)
+    self.log_current_search()
     if self.total_results == 0:
       return []
     else:
@@ -646,7 +644,8 @@ class Document(dict):
     formatted['pub_date'] = self.get_doc_pub_date(doc_soup)
     formatted['length'] = self.get_doc_length(doc_soup)
     if self.get_text:
-      formatted['full_text'] = self.get_full_text(formatted['doc_id'])
+      full_text = self.get_full_text(formatted['doc_id'])
+      formatted['full_text'] = full_text
     return formatted
 
 
@@ -747,8 +746,8 @@ class Document(dict):
     headers = self.session.get_headers(request)
     response = requests.post(url=url, headers=headers, data=request)
     soup = BeautifulSoup(response.text, self.session.parser)
-    doc = soup.find(re.compile('.:document')).text
-    return base64.b64decode(doc)
+    doc = soup.find('ns1:document').text
+    return base64.b64decode(doc).decode('utf8')
 
 ##
 # Soup Helpers
