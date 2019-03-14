@@ -298,8 +298,8 @@ class WSK:
     @returns: {obj}: an object that details the titles in the current source
     '''
     source = base64.b64decode(soup.string)
-    source_soup = BeautifulSoup(source, self.parser)
-    exclusions = source_soup.find('div', {'EXCLUSIONS'}).find_all('p')[3]
+    source_soup = BeautifulSoup(source.decode('utf8'), self.parser)
+    exclusions = source_soup.find('div', {'EXCLUSIONS'})
     return dict({
       'source_name': source_soup.find('div', {'class': 'PUBLICATION-NAME'}).text,
       'file_name': source_soup.find('div', {'class': 'FILE-NAME'}).text,
@@ -307,7 +307,7 @@ class WSK:
       'full_text': split_on_br(source_soup.find('div', {'FULL-TEXT'})),
       'selected_text': split_on_br(source_soup.find('div', {'SELECTED-TEXT'})),
       'also_contains': split_on_br(source_soup.find('div', {'ALSO-CONTAINS'})),
-      'exclusions': split_on_br(exclusions),
+      'exclusions': exclusions.get_text() if exclusions else '',
     })
 
 
@@ -773,6 +773,8 @@ def split_on_br(soup):
   @returns: {arr}: a list of the elements in the soup
   '''
   elems = []
+  if not soup or not soup.find('contents'):
+    return []
   for i in soup.contents:
     if getattr(i, 'name', None) != 'br':
       if type(i) is element.Tag:
