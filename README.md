@@ -1,3 +1,7 @@
+# Note: This repository has been archived
+This project was developed under a previous phase of the Yale Digital Humanities Lab. Now a part of Yale Library’s Computational Methods and Data department, the Lab no longer includes this project in its scope of work. As such, it will receive no further updates.
+
+
 # WSK
 
 This module provides convenience wrappers around the Lexis Nexis Web Services Kit API. To use it, you'll need to make sure your university or organization has purchased access to the Lexis Nexis Web Services Kit API.
